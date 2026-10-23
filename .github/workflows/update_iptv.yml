@@ -9,12 +9,10 @@ jobs:
   update-playlist:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # This is the key fix - grants push permission
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,11 +27,21 @@ jobs:
       - name: Run Scraper
         run: python scraper.py
 
+      - name: Upload Debug Files (Check these if it fails)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-output
+          path: |
+            debug.html
+            debug_screenshot.png
+            playlist.m3u
+
       - name: Commit and Push updated playlist
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add playlist.m3u || echo "No playlist.m3u found"
+          git add playlist.m3u
           git status
           git diff --cached --quiet || git commit -m "Auto-update IPTV playlist $(date)"
-          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main || echo "Push failed"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main || echo "Push failed or no changes"
