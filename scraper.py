@@ -29,55 +29,77 @@ async def main():
                           wait_until="domcontentloaded", 
                           timeout=30000)
             
-            # Take screenshot BEFORE clicking
+            # Take screenshot BEFORE waiting
             await page.screenshot(path="debug_screenshot.png")
-            print("✓ Screenshot saved (before click)")
+            print("✓ Screenshot saved (initial state)")
             
-            print("Step 2: Waiting 7 seconds for button to unlock...")
-            await page.wait_for_timeout(7000)
+            print("Step 2: Waiting 15 seconds for button to unlock...")
+            await page.wait_for_timeout(15000)
             
             print("Step 3: Looking for button...")
             
-            # Try multiple button selectors
+            # Try to find and click the button
             button_clicked = False
-            selectors_to_try = [
-                "button:has-text('Create free IPTV account !')",
-                "button:has-text('Create free IPTV account')",
-                "button:has-text('Create')",
-                "input[type='submit']",
-                "button[type='submit']"
-            ]
             
-            for selector in selectors_to_try:
+            # Method 1: Wait for button to be enabled, then click
+            try:
+                print("  Trying to wait for button to be enabled...")
+                button = page.locator("button:has-text('Create free IPTV account !')").first
+                await button.wait_for(state='visible', timeout=5000)
+                await button.wait_for(state='enabled', timeout=10000)
+                await button.click()
+                print("✓ Clicked button (Method 1: wait for enabled)")
+                button_clicked = True
+            except Exception as e:
+                print(f"  Method 1 failed: {e}")
+            
+            # Method 2: Force click if still not clicked
+            if not button_clicked:
                 try:
-                    button = page.locator(selector).first
-                    is_visible = await button.is_visible()
-                    print(f"  Trying '{selector}' - visible: {is_visible}")
-                    
-                    if is_visible:
-                        await button.click()
-                        print(f"✓ Clicked button using: {selector}")
-                        button_clicked = True
-                        break
+                    print("  Trying force click...")
+                    button = page.locator("button:has-text('Create free IPTV account !')").first
+                    await button.click(force=True)
+                    print("✓ Clicked button (Method 2: force click)")
+                    button_clicked = True
                 except Exception as e:
-                    print(f"  Failed with '{selector}': {e}")
-                    continue
+                    print(f"  Method 2 failed: {e}")
+            
+            # Method 3: Click using JavaScript
+            if not button_clicked:
+                try:
+                    print("  Trying JavaScript click...")
+                    await page.evaluate("""
+                        () => {
+                            const buttons = document.querySelectorAll('button');
+                            for (let btn of buttons) {
+                                if (btn.textContent.includes('Create free IPTV account')) {
+                                    btn.click();
+                                    return true;
+                                }
+                            }
+                            return false;
+                        }
+                    """)
+                    print("✓ Clicked button (Method 3: JavaScript)")
+                    button_clicked = True
+                except Exception as e:
+                    print(f"  Method 3 failed: {e}")
             
             if not button_clicked:
-                print("✗ Could not find any button to click")
+                print(" Could not click button with any method")
                 content = await page.content()
                 with open("debug.html", "w", encoding="utf-8") as f:
                     f.write(content)
                 return
             
-            print("Step 4: Waiting 8 seconds for credentials to appear...")
-            await page.wait_for_timeout(8000)
+            print("Step 4: Waiting 10 seconds for credentials to appear...")
+            await page.wait_for_timeout(10000)
             
             # Take screenshot AFTER clicking
             await page.screenshot(path="debug_screenshot_after.png")
             print("✓ Screenshot saved (after click)")
             
-            # Get page content after clicking
+            # Get page content
             content = await page.content()
             with open("debug_after_click.html", "w", encoding="utf-8") as f:
                 f.write(content)
@@ -108,15 +130,9 @@ async def main():
                     print(f"✗ M3U too short ({len(playlist_data)} bytes)")
             else:
                 print("✗ No credentials found in HTML")
-                # Try to find them in input fields
-                inputs = await page.locator("input").all()
-                for i, inp in enumerate(inputs):
-                    val = await inp.get_attribute("value")
-                    if val:
-                        print(f"  Input {i}: {val[:50]}")
                     
         except Exception as e:
-            print(f"✗ Error: {e}")
+            print(f" Error: {e}")
             import traceback
             traceback.print_exc()
         finally:
